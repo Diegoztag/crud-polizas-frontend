@@ -8,64 +8,121 @@ import {
     Button,
     Typography,
     Grid,
-    CircularProgress
+    CircularProgress,
+    Autocomplete,
+    Snackbar,
+    Alert
 } from '@mui/material';
-import { polizasApi } from '../../services/api';
+import { polizasApi, empleadosApi, inventarioApi } from '../../services/api';
 
 const PolizaEditForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [loadingEmpleados, setLoadingEmpleados] = useState(false);
+    const [empleadoInicial, setEmpleadoInicial] = useState(null);
+    const [empleados, setEmpleados] = useState([]);
     const [formData, setFormData] = useState({
-        nombre: '',
-        apellido: ''
+        sku: '',
+        cantidad: '',
+        idEmpleado: '',
+        empleadoSeleccionado: null,
+        productoSeleccionado: null
+    });
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const [touched, setTouched] = useState({
+        idEmpleado: false
     });
 
     const [errors, setErrors] = useState({
-        nombre: '',
-        apellido: ''
+        idEmpleado: ''
     });
+
+    useEffect(() => {
+        const cargarDatos = async () => {
+            setInitialLoading(true);
+            setLoadingEmpleados(true);
+            try {
+                const polizaResponse = await polizasApi.getById(id);
+                const polizaData = polizaResponse.data.data;
+                
+                const [empleadosResponse, empleadoResponse, productoResponse] = await Promise.all([
+                    empleadosApi.getAll(),
+                    empleadosApi.getById(polizaData.empleado.idEmpleado),
+                    inventarioApi.getBySku(polizaData.inventario.sku)
+                ]);
+
+                const empleadosData = empleadosResponse.data.data || [];
+                const empleadoActual = empleadoResponse.data.data;
+                const productoData = productoResponse.data.data;
+                
+                setEmpleados(empleadosData);
+                setEmpleadoInicial(empleadoActual);
+                
+                setFormData({
+                    sku: polizaData.inventario.sku,
+                    cantidad: polizaData.poliza.cantidad,
+                    idEmpleado: polizaData.empleado.id,
+                    empleadoSeleccionado: empleadoActual,
+                    productoSeleccionado: productoData
+                });
+
+            } catch (error) {
+                console.error('Error al cargar datos:', error);
+            } finally {
+                setInitialLoading(false);
+                setLoadingEmpleados(false);
+            }
+        };
+
+        cargarDatos();
+    }, [id]);
 
     const validateField = (name, value) => {
         switch (name) {
-            case 'nombre':
-                return value.trim() === '' ? 'El nombre es requerido' : '';
-            case 'apellido':
-                return value.trim() === '' ? 'El apellido es requerido' : '';
+            case 'idEmpleado':
+                return !value ? 'El empleado es requerido' : '';
             default:
                 return '';
         }
     };
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-        setErrors(prev => ({
-            ...prev,
-            [name]: validateField(name, value)
-        }));
+    const anyChange = () => {
+        if (!empleadoInicial || !formData.empleadoSeleccionado) return false;
+        return empleadoInicial.id !== formData.empleadoSeleccionado.id;
     };
 
-    const [touched, setTouched] = useState({
-        nombre: false,
-        apellido: false
-    });
+    const filtrarEmpleadosPorTermino = (empleados, searchTerm) => {
+        return empleados.filter(empleado => 
+            empleado.id?.toString().includes(searchTerm) ||
+            empleado.nombre?.toLowerCase().includes(searchTerm) ||
+            empleado.apellido?.toLowerCase().includes(searchTerm) ||
+            empleado.puesto?.toLowerCase().includes(searchTerm)
+        );
+    };
+
+    const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setSnackbar(prev => ({ ...prev, open: false }));
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
         setTouched({
-            nombre: true,
-            apellido: true
+            idEmpleado: true
         });
 
         const newErrors = {
-            nombre: validateField('nombre', formData.nombre),
-            apellido: validateField('apellido', formData.apellido)
+            idEmpleado: formData.empleadoSeleccionado ? '' : 'El empleado es requerido'
         };
         
         setErrors(newErrors);
@@ -74,43 +131,27 @@ const PolizaEditForm = () => {
             return;
         }
     
-        setLoading(true);
+        setIsSubmitting(true);
         try {
-            await polizasApi.update(id, formData);
-            navigate('/polizas');
+            await polizasApi.updateEmpleado(id, formData.empleadoSeleccionado.id);
+            setSnackbar({
+                open: true,
+                message: 'Póliza actualizada exitosamente',
+                severity: 'success'
+            });
+            setTimeout(() => {
+                navigate('/polizas');
+            }, 2000);
         } catch (error) {
             console.error('Error al actualizar la póliza:', error);
-        } finally {
-            setLoading(false);
+            setSnackbar({
+                open: true,
+                message: 'Error al actualizar la póliza',
+                severity: 'error'
+            });
+            setIsSubmitting(false);
         }
     };
-
-    const handleBlur = (e) => {
-        const { name } = e.target;
-        setTouched(prev => ({
-            ...prev,
-            [name]: true
-        }));
-    };
-
-    useEffect(() => {
-        const loadPoliza = async () => {
-            try {
-                const response = await polizasApi.getById(id);
-                const polizaData = response.data.data;
-                setFormData({
-                    nombre: polizaData.empleado.nombre,
-                    apellido: polizaData.empleado.apellido
-                });
-            } catch (error) {
-                console.error('Error al cargar la póliza:', error);
-            } finally {
-                setInitialLoading(false);
-            }
-        };
-
-        loadPoliza();
-    }, [id]);
 
     if (initialLoading) {
         return (
@@ -135,29 +176,75 @@ const PolizaEditForm = () => {
                     <form onSubmit={handleSubmit} noValidate>
                         <Grid container spacing={3}>
                             <Grid item xs={12}>
-                                <TextField
+                                <Autocomplete
                                     fullWidth
-                                    label="Nombre"
-                                    name="nombre"
-                                    value={formData.nombre}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    required
-                                    error={touched.nombre && !!errors.nombre}
-                                    helperText={touched.nombre && errors.nombre}
+                                    options={[]}
+                                    value={formData.productoSeleccionado}
+                                    disabled={true}
+                                    getOptionLabel={(option) => `${option.sku} - ${option.nombre}`}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Producto"
+                                        />
+                                    )}
                                 />
                             </Grid>
                             <Grid item xs={12}>
                                 <TextField
                                     fullWidth
-                                    label="Apellido"
-                                    name="apellido"
-                                    value={formData.apellido}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    required
-                                    error={touched.apellido && !!errors.apellido}
-                                    helperText={touched.apellido && errors.apellido}
+                                    label="Cantidad"
+                                    name="cantidad"
+                                    type="number"
+                                    value={formData.cantidad}
+                                    disabled={true}
+                                    InputProps={{
+                                        readOnly: true,
+                                    }}
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Autocomplete
+                                    fullWidth
+                                    options={empleados}
+                                    value={formData.empleadoSeleccionado}
+                                    noOptionsText="No se encontraron empleados"
+                                    getOptionLabel={(option) => `${option.id} - ${option.nombre} ${option.apellido} - ${option.puesto}`}
+                                    loading={loadingEmpleados}
+                                    filterOptions={(options, { inputValue }) => {
+                                        const searchTerm = inputValue.toLowerCase();
+                                        return filtrarEmpleadosPorTermino(options, searchTerm);
+                                    }}
+                                    onChange={(event, newValue) => {
+                                        const newIdEmpleado = newValue ? newValue.id : '';
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            idEmpleado: newIdEmpleado,
+                                            empleadoSeleccionado: newValue
+                                        }));
+                                        setErrors(prev => ({
+                                            ...prev,
+                                            idEmpleado: validateField('idEmpleado', newIdEmpleado)
+                                        }));
+                                    }}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Buscar empleado"
+                                            required
+                                            error={touched.idEmpleado && !!errors.idEmpleado}
+                                            helperText={touched.idEmpleado && errors.idEmpleado}
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                endAdornment: (
+                                                    <>
+                                                        {loadingEmpleados ? <CircularProgress color="inherit" size={20} /> : null}
+                                                        {params.InputProps.endAdornment}
+                                                    </>
+                                                ),
+                                            }}
+                                        />
+                                    )}
                                 />
                             </Grid>
                             <Grid item xs={12}>
@@ -165,17 +252,17 @@ const PolizaEditForm = () => {
                                     <Button
                                         variant="outlined"
                                         onClick={() => navigate('/polizas')}
-                                        disabled={loading}
+                                        disabled={isSubmitting}
                                     >
                                         Cancelar
                                     </Button>
                                     <Button
                                         type="submit"
                                         variant="contained"
-                                        disabled={loading}
-                                        startIcon={loading ? <CircularProgress size={20} /> : null}
+                                        disabled={isSubmitting || !anyChange()}
+                                        startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
                                     >
-                                        Guardar
+                                        Editar
                                     </Button>
                                 </Box>
                             </Grid>
@@ -183,6 +270,20 @@ const PolizaEditForm = () => {
                     </form>
                 </Paper>
             </Box>
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={5000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <Alert 
+                    onClose={handleCloseSnackbar} 
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </motion.div>
     );
 };

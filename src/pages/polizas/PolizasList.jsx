@@ -47,7 +47,6 @@ const PolizasList = () => {
     const loadPolizas = async () => {
         try {
             const response = await polizasApi.getAll();
-            console.log('Datos recibidos:', response.data);
             setPolizas(response.data.data || []);
         } catch (error) {
             console.error("Error al cargar pólizas:", error);

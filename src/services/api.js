@@ -13,6 +13,8 @@ export const polizasApi = {
     create: (data) => api.post("/polizas", data),
     update: (id, data) => api.put(`/polizas/${id}`, data),
     delete: (id) => api.delete(`/polizas/${id}`),
+    updateEmpleado: (id, idEmpleado) => 
+        axios.put(`/api/polizas/${id}/empleado?idEmpleado=${idEmpleado}`),
 };
 
 export const empleadosApi = {

@@ -56,19 +56,6 @@ const PolizaForm = () => {
         cargarDatosIniciales();
     }, []);
 
-    const buscarProductos = async (searchTerm) => {
-        if (!searchTerm) return;
-        setLoadingProductos(true);
-        try {
-            const response = await inventarioApi.getBySku(searchTerm);
-            setProductos(response.data.data || []);
-        } catch (error) {
-            console.error('Error al buscar productos:', error);
-        } finally {
-            setLoadingProductos(false);
-        }
-    };
-
     const filtrarEmpleadosPorTermino = (empleados, searchTerm) => {
         return empleados.filter(empleado => 
             empleado.id?.toString().includes(searchTerm) ||
