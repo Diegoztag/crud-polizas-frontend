@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -10,9 +10,10 @@ import {
     Grid,
     CircularProgress,
     Snackbar,
-    Alert
+    Alert,
+    Autocomplete
 } from '@mui/material';
-import { polizasApi } from '../../services/api';
+import { polizasApi, empleadosApi, inventarioApi } from '../../services/api';
 
 const PolizaForm = () => {
     const navigate = useNavigate();
@@ -22,21 +23,76 @@ const PolizaForm = () => {
         cantidad: '',
         idEmpleado: ''
     });
-
     const [errors, setErrors] = useState({
         sku: '',
         cantidad: '',
         idEmpleado: ''
     });
+    const [productos, setProductos] = useState([]);
+    const [empleados, setEmpleados] = useState([]);
+    const [loadingProductos, setLoadingProductos] = useState(false);
+    const [loadingEmpleados, setLoadingEmpleados] = useState(false);
+
+    useEffect(() => {
+        const cargarDatosIniciales = async () => {
+            setLoadingEmpleados(true);
+            setLoadingProductos(true);
+            try {
+                const [empleadosResponse, productosResponse] = await Promise.all([
+                    empleadosApi.getAll(),
+                    inventarioApi.getAll()
+                ]);
+                
+                setEmpleados(empleadosResponse.data.data || []);
+                setProductos(productosResponse.data.data || []);
+            } catch (error) {
+                console.error('Error al cargar datos iniciales:', error);
+            } finally {
+                setLoadingEmpleados(false);
+                setLoadingProductos(false);
+            }
+        };
+
+        cargarDatosIniciales();
+    }, []);
+
+    const buscarProductos = async (searchTerm) => {
+        if (!searchTerm) return;
+        setLoadingProductos(true);
+        try {
+            const response = await inventarioApi.getBySku(searchTerm);
+            setProductos(response.data.data || []);
+        } catch (error) {
+            console.error('Error al buscar productos:', error);
+        } finally {
+            setLoadingProductos(false);
+        }
+    };
+
+    const filtrarEmpleadosPorTermino = (empleados, searchTerm) => {
+        return empleados.filter(empleado => 
+            empleado.id?.toString().includes(searchTerm) ||
+            empleado.nombre?.toLowerCase().includes(searchTerm) ||
+            empleado.apellido?.toLowerCase().includes(searchTerm) ||
+            empleado.puesto?.toLowerCase().includes(searchTerm)
+        );
+    };
+
+    const filtrarProductosPorTermino = (productos, searchTerm) => {
+        return productos.filter(producto => 
+            producto.sku?.toLowerCase().includes(searchTerm) ||
+            producto.nombre?.toLowerCase().includes(searchTerm)
+        );
+    };
 
     const validateField = (name, value) => {
         switch (name) {
             case 'sku':
-                return value.trim() === '' ? 'El SKU es requerido' : '';
+                return !value ? 'El SKU es requerido' : '';
             case 'cantidad':
-                return value <= 0 ? 'La cantidad debe ser mayor a 0' : '';
+                return !value || value <= 0 ? 'La cantidad debe ser mayor a 0' : '';
             case 'idEmpleado':
-                return value.trim() === '' ? 'El ID de empleado es requerido' : '';
+                return !value ? 'El empleado es requerido' : '';
             default:
                 return '';
         }
@@ -139,16 +195,45 @@ const PolizaForm = () => {
                     <form onSubmit={handleSubmit} noValidate>
                         <Grid container spacing={3}>
                             <Grid item xs={12}>
-                                <TextField
+                                <Autocomplete
                                     fullWidth
-                                    label="SKU"
-                                    name="sku"
-                                    value={formData.sku}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    required
-                                    error={touched.sku && !!errors.sku}
-                                    helperText={touched.sku && errors.sku}
+                                    options={productos}
+                                    getOptionLabel={(option) => `${option.sku} - ${option.nombre}`}
+                                    loading={loadingProductos}
+                                    noOptionsText="No se encontraron productos"
+                                    filterOptions={(options, { inputValue }) => {
+                                        const searchTerm = inputValue.toLowerCase();
+                                        return filtrarProductosPorTermino(options, searchTerm);
+                                    }}
+                                    onChange={(event, newValue) => {
+                                        const newSku = newValue ? newValue.sku : '';
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            sku: newSku
+                                        }));
+                                        setErrors(prev => ({
+                                            ...prev,
+                                            sku: validateField('sku', newSku)
+                                        }));
+                                    }}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Buscar producto"
+                                            required
+                                            error={touched.sku && !!errors.sku}
+                                            helperText={touched.sku && errors.sku}
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                endAdornment: (
+                                                    <>
+                                                        {loadingProductos ? <CircularProgress color="inherit" size={20} /> : null}
+                                                        {params.InputProps.endAdornment}
+                                                    </>
+                                                ),
+                                            }}
+                                        />
+                                    )}
                                 />
                             </Grid>
                             <Grid item xs={12}>
@@ -167,16 +252,46 @@ const PolizaForm = () => {
                             />
                             </Grid>
                             <Grid item xs={12}>
-                                <TextField
+                                <Autocomplete
                                     fullWidth
-                                    label="ID Empleado"
-                                    name="idEmpleado"
-                                    value={formData.idEmpleado}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    required
-                                    error={touched.idEmpleado && !!errors.idEmpleado}
-                                    helperText={touched.idEmpleado && errors.idEmpleado}
+                                    options={empleados}
+                                    noOptionsText="No se encontraron empleados"
+                                    getOptionLabel={(option) => `${option.id} - ${option.nombre} ${option.apellido} - ${option.puesto}`}
+                                    loading={loadingEmpleados}
+                                    filterOptions={(options, { inputValue }) => {
+                                        const searchTerm = inputValue.toLowerCase();
+                                        return filtrarEmpleadosPorTermino(options, searchTerm);
+                                    }}
+                                    onChange={(event, newValue) => {
+                                        const newIdEmpleado = newValue ? newValue.id : '';
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            idEmpleado: newIdEmpleado
+                                        }));
+                                        // Actualizar el error cuando se selecciona un empleado
+                                        setErrors(prev => ({
+                                            ...prev,
+                                            idEmpleado: validateField('idEmpleado', newIdEmpleado)
+                                        }));
+                                    }}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Buscar empleado"
+                                            required
+                                            error={touched.idEmpleado && !!errors.idEmpleado}
+                                            helperText={touched.idEmpleado && errors.idEmpleado}
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                endAdornment: (
+                                                    <>
+                                                        {loadingEmpleados ? <CircularProgress color="inherit" size={20} /> : null}
+                                                        {params.InputProps.endAdornment}
+                                                    </>
+                                                ),
+                                            }}
+                                        />
+                                    )}
                                 />
                             </Grid>
                             <Grid item xs={12}>
