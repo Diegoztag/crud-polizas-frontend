@@ -14,8 +14,14 @@ import {
     Typography,
     CircularProgress,
     IconButton,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    InputAdornment,
 } from "@mui/material";
-import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, Search as SearchIcon } from '@mui/icons-material';
 import { polizasApi } from "../../services/api";
 import {
     Dialog,
@@ -31,8 +37,13 @@ const PolizasList = () => {
     const [loading, setLoading] = useState(true);
     const [openDialog, setOpenDialog] = useState(false);
     const [polizaToDelete, setPolizaToDelete] = useState(null);
+    const [filtros, setFiltros] = useState({
+        busqueda: '',
+        ordenarPor: 'fecha',
+        orden: 'desc'
+    });
     const navigate = useNavigate();
-
+    
     const loadPolizas = async () => {
         try {
             const response = await polizasApi.getAll();
@@ -62,6 +73,40 @@ const PolizasList = () => {
         } catch (error) {
             console.error("Error al eliminar:", error);
         }
+    };
+
+    const handleFiltroChange = (e) => {
+        const { name, value } = e.target;
+        setFiltros(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const filtrarPolizas = (polizas) => {
+        return polizas.filter(item => {
+            const searchTerm = filtros.busqueda.toLowerCase();
+            return (
+                item?.poliza?.idPoliza?.toString().includes(searchTerm) ||
+                item?.inventario?.sku?.toLowerCase().includes(searchTerm) ||
+                item?.inventario?.nombre?.toLowerCase().includes(searchTerm) ||
+                item?.empleado?.nombre?.toLowerCase().includes(searchTerm) ||
+                item?.empleado?.apellido?.toLowerCase().includes(searchTerm)
+            );
+        }).sort((a, b) => {
+            switch (filtros.ordenarPor) {
+                case 'fecha':
+                    return filtros.orden === 'asc' 
+                        ? new Date(a.poliza.fecha) - new Date(b.poliza.fecha)
+                        : new Date(b.poliza.fecha) - new Date(a.poliza.fecha);
+                case 'sku':
+                    return filtros.orden === 'asc'
+                        ? a.inventario.sku.localeCompare(b.inventario.sku)
+                        : b.inventario.sku.localeCompare(a.inventario.sku);
+                default:
+                    return 0;
+            }
+        });
     };
 
     return (
@@ -97,6 +142,47 @@ const PolizasList = () => {
                     >
                         Nueva Póliza
                     </Button>
+                </Box>
+
+                <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                    <TextField
+                        label="Buscar"
+                        name="busqueda"
+                        value={filtros.busqueda}
+                        onChange={handleFiltroChange}
+                        sx={{ minWidth: 200 }}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                    <FormControl sx={{ minWidth: 200 }}>
+                        <InputLabel>Ordenar por</InputLabel>
+                        <Select
+                            name="ordenarPor"
+                            value={filtros.ordenarPor}
+                            onChange={handleFiltroChange}
+                            label="Ordenar por"
+                        >
+                            <MenuItem value="fecha">Fecha</MenuItem>
+                            <MenuItem value="sku">SKU</MenuItem>
+                        </Select>
+                    </FormControl>
+                    <FormControl sx={{ minWidth: 200 }}>
+                        <InputLabel>Orden</InputLabel>
+                        <Select
+                            name="orden"
+                            value={filtros.orden}
+                            onChange={handleFiltroChange}
+                            label="Orden"
+                        >
+                            <MenuItem value="asc">Ascendente</MenuItem>
+                            <MenuItem value="desc">Descendente</MenuItem>
+                        </Select>
+                    </FormControl>
                 </Box>
 
                 <TableContainer 
@@ -137,13 +223,12 @@ const PolizasList = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {Array.isArray(polizas) && polizas.length > 0 ? (
-                                polizas.map((item) => (
+                        {Array.isArray(polizas) && polizas.length > 0 ? (
+                            filtrarPolizas(polizas).map((item) => (
                                     <TableRow 
                                         key={item?.poliza?.idPoliza || 'no-id'}
                                         hover
-                                        sx={{ '&:nth-of-type(odd)': { backgroundColor: '#fafafa' } }}
-                                    >
+                                        sx={{ '&:nth-of-type(odd)': { backgroundColor: '#fafafa' } }}>
                                         <TableCell>{item?.poliza?.idPoliza}</TableCell>
                                         <TableCell>{item?.inventario?.sku}</TableCell>
                                         <TableCell>{item?.inventario?.nombre}</TableCell>
