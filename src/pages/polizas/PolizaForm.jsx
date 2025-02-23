@@ -8,13 +8,15 @@ import {
     Button,
     Typography,
     Grid,
-    CircularProgress
+    CircularProgress,
+    Snackbar,
+    Alert
 } from '@mui/material';
 import { polizasApi } from '../../services/api';
 
 const PolizaForm = () => {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         sku: '',
         cantidad: '',
@@ -58,6 +60,12 @@ const PolizaForm = () => {
         idEmpleado: false
     });
 
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         
@@ -79,16 +87,25 @@ const PolizaForm = () => {
             return;
         }
     
-        setLoading(true);
+        setIsSubmitting(true);
         try {
-            console.log('Formulario enviado:', formData);
-            const response = await polizasApi.create(formData);
-            console.log('Póliza creada:', response.data);
-            navigate('/polizas');
+            await polizasApi.create(formData);
+            setSnackbar({
+                open: true,
+                message: 'Póliza creada exitosamente',
+                severity: 'success'
+            });
+            setTimeout(() => {
+                navigate('/polizas');
+            }, 2000);
         } catch (error) {
             console.error('Error al crear la póliza:', error);
-        } finally {
-            setLoading(false);
+            setSnackbar({
+                open: true,
+                message: 'Error al crear la póliza',
+                severity: 'error'
+            });
+            setIsSubmitting(false);
         }
     };
 
@@ -98,6 +115,13 @@ const PolizaForm = () => {
             ...prev,
             [name]: true
         }));
+    };
+
+    const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setSnackbar(prev => ({ ...prev, open: false }));
     };
 
     return (
@@ -160,15 +184,15 @@ const PolizaForm = () => {
                                     <Button
                                         variant="outlined"
                                         onClick={() => navigate('/polizas')}
-                                        disabled={loading}
+                                        disabled={isSubmitting}
                                     >
                                         Cancelar
                                     </Button>
                                     <Button
                                         type="submit"
                                         variant="contained"
-                                        disabled={loading}
-                                        startIcon={loading ? <CircularProgress size={20} /> : null}
+                                        disabled={isSubmitting}
+                                        startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
                                     >
                                         Guardar
                                     </Button>
@@ -178,6 +202,20 @@ const PolizaForm = () => {
                     </form>
                 </Paper>
             </Box>
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={5000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <Alert 
+                    onClose={handleCloseSnackbar} 
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </motion.div>
     );
 };

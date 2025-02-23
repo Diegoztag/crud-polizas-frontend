@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import Layout from "../layouts/MainLayout";
 import PolizasList from "../pages/polizas/PolizasList";
 import PolizaForm from "../pages/polizas/PolizaForm";
+import PolizaEditForm from "../pages/polizas/PolizaEditForm";
 
 export const router = createBrowserRouter([
     {
@@ -17,8 +18,12 @@ export const router = createBrowserRouter([
                 element: <PolizasList />,
             },
             {
-                path: "poliza/nueva",
+                path: "poliza/crear",
                 element: <PolizaForm />,
+            },
+            {
+                path: "poliza/editar/:id",
+                element: <PolizaEditForm />,
             },
         ],
     },

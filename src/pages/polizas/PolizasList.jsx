@@ -92,7 +92,7 @@ const PolizasList = () => {
                     <Button
                         variant="contained"
                         color="primary"
-                        onClick={() => navigate("/poliza/nueva")}
+                        onClick={() => navigate("/poliza/crear")}
                         sx={{ width: { xs: '100%', sm: 'auto' } }}
                     >
                         Nueva Póliza
@@ -166,7 +166,7 @@ const PolizasList = () => {
                                         <TableCell>
                                             <Box sx={{ display: 'flex', gap: 1 }}>
                                                 <IconButton
-                                                    onClick={() => navigate(`/poliza/edit/${item.poliza.idPoliza}`)}
+                                                    onClick={() => navigate(`/poliza/editar/${item.poliza.idPoliza}`)}
                                                     color="primary"
                                                     size="small"
                                                     title="Editar"
